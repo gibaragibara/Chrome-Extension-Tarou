@@ -67,3 +67,16 @@ export const buildNpcFilter = useWebExtensionStorage<number[]>('buildNpcFilter',
 
 // Gacha
 export const gachaInfo = useWebExtensionStorage<GachaInfo>('gachaInfo', {})
+
+
+
+// Telegram 通知配置
+// 用于战斗结束时发送 Telegram 远程通知
+// @property {string} botToken - Telegram Bot Token，从 @BotFather 获取
+// @property {string} chatId - 用户的 Telegram Chat ID，从 @userinfobot 获取
+// @property {boolean} enabled - 是否启用 Telegram 通知功能
+export const telegramConfig = useWebExtensionStorage<{ botToken: string, chatId: string, enabled: boolean }>('telegramConfig', {
+    botToken: '',    // 默认为空，需要用户自行配置
+    chatId: '',      // 默认为空，需要用户自行配置
+    enabled: false,  // 默认关闭，需要用户手动开启
+})

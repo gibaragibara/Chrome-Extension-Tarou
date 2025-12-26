@@ -68,14 +68,36 @@ export function handleAttackRusultJson(type: string, data: AttackResultJson, pay
     return
 
   const scenario = data.scenario
+  // 检测战斗胜利：scenario 中包含 'win' 命令且 is_last_raid 为 true
   const isWin = scenario.some(item => item.cmd === 'win' && item.is_last_raid)
   if (isWin && notificationSetting.value.battleWin) {
+    // 发送浏览器本地通知（带音效）
     createNotification({ message: `战斗结束`, sound: 'win' })
+
+    // 同时发送 Telegram 远程通知（如果用户已配置）
+    // 即使 Telegram 通知失败，也不会影响本地通知
+    sendTelegramNotification({
+      message: '战斗结束',
+      bossName: battleInfo.value.bossInfo?.name || '未知Boss',
+      battleResult: 'win',
+    })
   }
 
+  // 检测战斗失败：scenario 中包含 'lose' 命令
   const isLose = scenario.some(item => item.cmd === 'lose')
-  if (isLose && notificationSetting.value.battleLose)
+  if (isLose && notificationSetting.value.battleLose) {
+    // 发送浏览器本地通知（带音效）
     createNotification({ message: `队伍全灭`, sound: 'lose' })
+
+    // 同时发送 Telegram 远程通知（如果用户已配置）
+    // 即使 Telegram 通知失败，也不会影响本地通知
+    sendTelegramNotification({
+      message: '队伍全灭',
+      bossName: battleInfo.value.bossInfo?.name || '未知Boss',
+      battleResult: 'lose',
+    })
+  }
+
 
   const currentRaid = battleRecord.value.find(b => String(b.raid_id) === battleInfo.value.bossInfo?.battleId)
 
