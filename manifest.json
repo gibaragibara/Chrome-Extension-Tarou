@@ -13,7 +13,8 @@
     "*://*.granbluefantasy.jp/*",
     "*://gbf.game.mbga.jp/*",
     "*://*.akamaized.net/*",
-    "*://localhost/*"
+    "*://localhost/*",
+    "https://api.telegram.org/*"
   ],
   "background": {
     "service_worker": "background.js",
