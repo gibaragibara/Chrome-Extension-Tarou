@@ -14,7 +14,7 @@ const { mode = 'vertical' } = defineProps<{ actionQueue: ActionQueue[], mode?: '
             {{ `第${list.turn}回合` }}
           </div>
           <div v-if="list.interrupt_display_text" flex flex-col gap-1px>
-            <el-tag v-for="text in list.interrupt_display_text.split('|')" :key="text" type="warning" size="small">
+            <el-tag v-for="text in list.interrupt_display_text.split('|')" :key="text" :type="list.special_skill_interrupt ? 'success' : 'danger'" size="small">
               {{ text }}
             </el-tag>
           </div>
@@ -33,7 +33,7 @@ const { mode = 'vertical' } = defineProps<{ actionQueue: ActionQueue[], mode?: '
           </div>
         </div>
         <div flex flex-1 flex-wrap items-center justify-start gap-10px p-10px border-b="1  solid #414243">
-          <div v-for="action, i in list.acitonList" :key="i" fc gap-5px>
+          <div v-for="action, i in list.actionList" :key="i" fc gap-5px>
             <img h-47px :src="getActionIcon(action)">
             <template v-if="action.aim?.length">
               <div class="i-game-icons:fast-forward-button text-xl" />

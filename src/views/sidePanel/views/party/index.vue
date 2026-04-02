@@ -9,9 +9,9 @@ import Weapon from './components/Weapon.vue'
 const deck = computed(() => deckList.value[0])
 
 const commands = [
-  { lable: '复制配置', icon: 'material-symbols:content-copy', handler: copyParty },
-  { lable: '下载配置', icon: 'streamline-flex:screenshot', handler: downloadParty },
-  { lable: '配置对比', icon: 'material-symbols:compare', handler: () => openPopupWindow('BuildCompare') },
+  { label: '复制配置', icon: 'material-symbols:content-copy', handler: copyParty },
+  { label: '下载配置', icon: 'streamline-flex:screenshot', handler: downloadParty },
+  { label: '配置对比', icon: 'material-symbols:compare', handler: () => openPopupWindow('BuildCompare') },
 ]
 
 async function copyParty() {
@@ -47,6 +47,6 @@ async function downloadParty() {
     <Weapon :weapons="deck.weapons" />
     <Summon :summons="deck.summons" />
   </div>
-  <Effect v-if="deck" mt-10px :effects="deck.effects" />
+  <Effect v-if="deck" mt-10px :effects="deck.effects" :enhance="deck.enhance" />
   <el-result v-else icon="info" sub-title="进入编成界面读取队伍信息" />
 </template>

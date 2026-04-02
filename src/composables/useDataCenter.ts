@@ -4,8 +4,9 @@ import type { BattleStartJson, GachaRatioAppear, GachaRatioAppearItem, GachaResu
 import { load } from 'cheerio'
 import dayjs from 'dayjs'
 import { sendBossInfo } from '~/api'
+import { artifactSkillList } from '~/constants/artifact'
 import { getEventGachaBoxNum } from '~/constants/event'
-import { artifactList, battleInfo, battleMemo, battleRecord, buildQuestId, dailyCost, displayList, eventList, gachaInfo, gachaRecord, jobAbilityList, localNpcList, notificationSetting, obTabId, recoveryItemList, sampoInfo, sampoSetup, skipQuest, userInfo } from '~/logic'
+import { artifactList, artifactUsage, battleInfo, battleMemo, battleRecord, buildQuestId, dailyCost, displayList, eventList, gachaInfo, gachaRecord, jobAbilityList, localNpcList, notificationSetting, obTabId, recoveryItemList, sampoInfo, sampoSetup, skipQuest, userInfo } from '~/logic'
 
 const MaxMemoLength = 50
 
@@ -201,18 +202,31 @@ export async function unpack(parcel: string) {
     if (!responseData || responseData.length === 0)
       return
 
-    const crewMap = {
-      1: 'observation',
-      2: 'endurance',
-      3: 'charm',
-      4: 'power',
-    } as Record<number, keyof SampoParam>
+    sampoSetup.value.crew = responseData
+      .filter((item: any) => item.is_join)
+      .map((item: any) => {
+        const param = {
+          power: 0,
+          endurance: 0,
+          observation: 0,
+          charm: 0,
+          luck: 0,
+        }
 
-    sampoSetup.value.crew = responseData.map((item: any) => ({
-      id: item.crew_id,
-      lv: item.friendship_level,
-      [crewMap[item.crew_id]]: Number(item.skill[0].comment.match(/\d+/)?.[0] || '0'),
-    }))
+        for (const skill of item.skill) {
+          param.power += skill.power ?? 0
+          param.endurance += skill.endurance ?? 0
+          param.observation += skill.observation ?? 0
+          param.charm += skill.charm ?? 0
+          param.luck += skill.luck ?? 0
+        }
+
+        return {
+          id: item.crew_id,
+          lv: item.friendship_level,
+          ...param,
+        }
+      })
   }
 
   // Dashboard 探险队地图信息
@@ -555,42 +569,42 @@ export async function unpack(parcel: string) {
 
   // BattleLog 记录单次攻击日志
   if (/\/rest\/(?:raid|multiraid)\/normal_attack_result\.json/.test(url)) {
-    handleAttackRusultJson('normal', responseData, JSON.parse(requestData!))
+    handleAttackResultJson('normal', responseData, JSON.parse(requestData!))
   }
 
   // BattleLog 记录使用召唤日志
   if (/\/rest\/(?:raid|multiraid)\/summon_result\.json/.test(url)) {
-    handleAttackRusultJson('summon', responseData, JSON.parse(requestData!))
+    handleAttackResultJson('summon', responseData, JSON.parse(requestData!))
   }
 
   // BattleLog 记录使用FC日志
   if (/\/rest\/(?:raid|multiraid)\/fatal_chain_result\.json/.test(url)) {
-    handleAttackRusultJson('fc', responseData, JSON.parse(requestData!))
+    handleAttackResultJson('fc', responseData, JSON.parse(requestData!))
   }
 
   // BattleLog 记录使用技能日志
   if (/\/rest\/(?:raid|multiraid)\/ability_result\.json/.test(url)) {
-    handleAttackRusultJson('ability', responseData, JSON.parse(requestData!))
+    handleAttackResultJson('ability', responseData, JSON.parse(requestData!))
   }
 
   // BattleLog 记录使用DC连锁技能日志
   if (/\/rest\/(?:raid|multiraid)\/group_gauge_action_result\.json/.test(url)) {
-    handleAttackRusultJson('ability', responseData, JSON.parse(requestData!))
+    handleAttackResultJson('ability', responseData, JSON.parse(requestData!))
   }
 
   // BattleLog 记录使用蓝绿药日志
   if (/\/rest\/(?:raid|multiraid)\/temporary_item_result\.json/.test(url)) {
-    handleAttackRusultJson('temporary', responseData, JSON.parse(requestData!))
+    handleAttackResultJson('temporary', responseData, JSON.parse(requestData!))
   }
 
   // BattleLog 记录使用【活动】药品日志
   if (/\/rest\/(?:raid|multiraid)\/event_temporary_item_result\.json/.test(url)) {
-    handleAttackRusultJson('event/temporary', responseData, JSON.parse(requestData!))
+    handleAttackResultJson('event/temporary', responseData, JSON.parse(requestData!))
   }
 
   // BattleLog 记录使用大红日志
   if (/\/rest\/(?:raid|multiraid)\/user_recovery\.json/.test(url)) {
-    handleAttackRusultJson('recovery', responseData, JSON.parse(requestData!))
+    handleAttackResultJson('recovery', responseData, JSON.parse(requestData!))
   }
 
   // BattleLog 战斗结算
@@ -661,7 +675,9 @@ export async function unpack(parcel: string) {
       })),
     }
     console.log('sendBossInfo', bossInfo)
-    sendBossInfo(bossInfo).catch((err) => { console.log(err.message) })
+    sendBossInfo(bossInfo).catch((err) => {
+      console.log(err.message)
+    })
   }
 
   // Drop 记录未结算战斗信息
@@ -700,9 +716,9 @@ export async function unpack(parcel: string) {
 
   // Build 获取参战他人副本的questId
   if (url.includes('/quest/check_multi_start')) {
-    const paylaod = JSON.parse(requestData!)
-    if (paylaod.quest_id)
-      buildQuestId.value = String(paylaod.quest_id)
+    const payload = JSON.parse(requestData!)
+    if (payload.quest_id)
+      buildQuestId.value = String(payload.quest_id)
   }
 
   // Party 记录当前队伍信息
@@ -715,14 +731,35 @@ export async function unpack(parcel: string) {
     artifactList.value = responseData.list
   }
 
+  // Artifact 记录角色神器技能排名
+  if (url.includes('/rest/artifact/npc_artifact_skill_usage_analytics/')) {
+    artifactUsage.value = {
+      image: responseData.image,
+      filterList: [
+        { iconType: 'bonus_28', filterId: Number(responseData.filter_group_list[1][1].filter_id), skillId: 0 },
+        { iconType: 'bonus_28', filterId: Number(responseData.filter_group_list[1][2].filter_id), skillId: 0 },
+        { iconType: 'bonus_29', filterId: Number(responseData.filter_group_list[2][1].filter_id), skillId: 0 },
+        { iconType: 'bonus_30', filterId: Number(responseData.filter_group_list[3][1].filter_id), skillId: 0 },
+      ],
+    }
+
+    for (const filter of artifactUsage.value.filterList!) {
+      const hitSkill = Object.values(artifactSkillList).flat().find(s => s.filterId === filter.filterId)
+      if (hitSkill)
+        filter.skillId = hitSkill.skillId
+    }
+  }
+
   // 判断是否开启debugger
   if (url.includes('/socket/uri/raid')) {
     chrome.runtime.getContexts({}).then((ctx) => {
-      if (ctx.filter(c => c.documentUrl?.includes('src/views/sidePanel/main.html')).length === 0)
-        obTabId.value = 0
+      const isSidePanelOpen = ctx.some(c => c.documentUrl?.includes('src/views/sidePanel/main.html'))
+      const isCombatPanelOpen = ctx.some(c => c.documentUrl?.includes('src/views/combatPanel/main.html'))
 
-      if (!obTabId.value)
+      if (!isSidePanelOpen && !isCombatPanelOpen) {
+        obTabId.value = 0
         return
+      }
 
       chrome.debugger.getTargets().then((targets) => {
         const isAttached = targets.some(target => target.tabId === obTabId.value && target.attached)
@@ -759,11 +796,11 @@ export async function unpack(parcel: string) {
   // BattleLog 记录子技能日志
   if (/\/rest\/(?:raid|multiraid)\/get_select_if\.json/.test(url)) {
     const data = responseData
-    const paylaod = JSON.parse(requestData!)
-    const hit = battleRecord.value.find(record => record.raid_id === paylaod.raid_id)
+    const payload = JSON.parse(requestData!)
+    const hit = battleRecord.value.find(record => record.raid_id === payload.raid_id)
     if (!hit)
       return
-    const hitAbility = hit.abilityList.find(ability => ability.id === paylaod.ability_id)
+    const hitAbility = hit.abilityList.find(ability => ability.id === payload.ability_id)
     if (!hitAbility)
       return
     hitAbility.subAbility = Object.values(data.select_ability_info).map((item: any) => ({
@@ -778,8 +815,8 @@ export async function unpack(parcel: string) {
     // 两个使用暗器职业的一技能ID
     const HIDDEN_WEAPON_ABILITY_ID = ['7241', '201581']
     const data = responseData
-    const paylaod = JSON.parse(requestData!) as { raid_id: number, pid: string }
-    const hit = battleRecord.value.find(record => record.raid_id === paylaod.raid_id)
+    const payload = JSON.parse(requestData!) as { raid_id: number, pid: string }
+    const hit = battleRecord.value.find(record => record.raid_id === payload.raid_id)
     if (!hit)
       return
     const hitAbility = hit.abilityList.find(ability => HIDDEN_WEAPON_ABILITY_ID.includes(ability.id || ''))
@@ -794,14 +831,14 @@ export async function unpack(parcel: string) {
 
   // BattleLog 记录切换guard日志
   if (/\/rest\/(?:raid|multiraid)\/guard_setting\.json/.test(url)) {
-    const paylaod = JSON.parse(requestData!)
-    handleGuardSettingJson({ raid_id: paylaod.raid_id, guard_status: responseData.guard_status })
+    const payload = JSON.parse(requestData!)
+    handleGuardSettingJson({ raid_id: payload.raid_id, guard_status: responseData.guard_status })
   }
 
   // BattleLog 记录切换奥义温存日志
   if (/\/rest\/(?:raid|multiraid)\/special_skill_setting/.test(url)) {
-    const paylaod = JSON.parse(requestData!)
-    handleSpecialSkillSettingJson(paylaod)
+    const payload = JSON.parse(requestData!)
+    handleSpecialSkillSettingJson(payload)
   }
 
   // BattleLog 记录战斗结果

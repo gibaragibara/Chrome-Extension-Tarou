@@ -34,6 +34,7 @@ declare module 'battle' {
     turn: number
     timer: number
     countDownTime: number
+    turnWaiting: number
     interrupt_display_text?: string
     lv: string
     attribute: string
@@ -74,6 +75,7 @@ declare module 'battle' {
     ability: number
     special: number
     total: number
+    chain: number
   }
 
   interface BattleExport {

@@ -1,6 +1,6 @@
 import type { Action, BattleRecord, PartyCondition, Player } from 'extension'
 import type { Ability, AttackResultJson, BattleStartJson, ChatInfoEN, ChatInfoJP, Condition, DamageScenario, GuardSettingJson, LoopDamageScenario, ResultJsonPayload, ScenarioType, SpecialScenario, SpecialSkillSetting, SummonScenario, SuperScenario, WsPayloadData } from 'source'
-import { battleInfo, battleRecord, notificationSetting, userInfo } from '~/logic'
+import { battleInfo, battleRecord, notificationSetting, questSetting, userInfo } from '~/logic'
 
 export function handleStartJson(data: BattleStartJson) {
   const boss = data.boss.param[0]
@@ -25,7 +25,7 @@ export function handleStartJson(data: BattleStartJson) {
     battleId: String(data.raid_id),
     shareId: data.twitter?.battle_id,
     imgId: boss.cjs.split('_').at(-1)!,
-    name: boss.monster,
+    name: boss.name.ja,
     hp: Number(boss.hp),
     hpmax: Number(boss.hpmax),
     hpPercent: Number.parseFloat((Number(boss.hp) / Number(boss.hpmax) * 100).toFixed(2)),
@@ -38,6 +38,7 @@ export function handleStartJson(data: BattleStartJson) {
     attribute: boss.attribute,
     limitNum: Number(data.limit_number || 1),
     fellow: data.multi_raid_member_info?.length || 1,
+    turnWaiting: data.turn_waiting,
   }
 
   battleInfo.value.summonInfo = {
@@ -60,10 +61,10 @@ export function handleStartJson(data: BattleStartJson) {
   recordRaidInfo(data)
   // 处理开幕特动情况start
   if (data.scenario)
-    handleAttackRusultJson('start', data as AttackResultJson)
+    handleAttackResultJson('start', data as AttackResultJson)
 }
 
-export function handleAttackRusultJson(type: string, data: AttackResultJson, payload?: ResultJsonPayload) {
+export function handleAttackResultJson(type: string, data: AttackResultJson, payload?: ResultJsonPayload) {
   if (!type || !data?.scenario)
     return
 
@@ -146,6 +147,13 @@ export function handleAttackRusultJson(type: string, data: AttackResultJson, pay
     battleInfo.value.summonInfo.supporter.recast = status?.supporter?.recast ?? battleInfo.value.summonInfo.supporter.recast
   }
 
+  const isSpecialSkillInterrupt = scenario.some(item => item.cmd === 'special_skill_interrupt')
+  if (isSpecialSkillInterrupt) {
+    const lastInterrupt = currentRaid.actionQueue.findLast(item => item.interrupt_display_text)
+    if (lastInterrupt)
+      lastInterrupt.special_skill_interrupt = true
+  }
+
   const bossBuffs = scenario.findLast(item => item.cmd === 'condition' && item.to === 'boss' && item.pos === 0)
   const playerBuffs = scenario.findLast(item => item.cmd === 'condition' && item.to === 'player' && item.pos === 0)
 
@@ -170,7 +178,7 @@ export function handleAttackRusultJson(type: string, data: AttackResultJson, pay
     if (playerBuffs?.condition) {
       partyCondition.push({
         pos: Number(formation[i]),
-        buff: mergerCondition(playerBuffs.condition),
+        buff: mergeCondition(playerBuffs.condition),
         coating_value: playerBuffs.condition.coating_value ?? 0,
       })
     }
@@ -187,16 +195,16 @@ function handleNormalAttackJson(data: AttackResultJson) {
   if (!scenario)
     return
 
-  battleInfo.value.normalAttackInfo = { hit: 0, ability: 0, special: 0, total: 0 }
+  battleInfo.value.normalAttackInfo = { hit: 0, ability: 0, special: 0, total: 0, chain: 0 }
   for (let index = 0; index < scenario.length; index++) {
     const action = scenario[index]
 
     if (action.cmd === 'attack' && action.from === 'player') {
-      for (let i = 0; i < action.damage.length; i++) {
-        for (let j = 0; j < action.damage[i].length; j++) {
-          if (Number(action.damage[i][j].value)) {
+      for (const damageList of Object.values(action.damage)) {
+        for (const damage of damageList) {
+          if (Number(damage.value)) {
             battleInfo.value.normalAttackInfo.hit++
-            battleInfo.value.normalAttackInfo.total += Number(action.damage[i][j].value)
+            battleInfo.value.normalAttackInfo.total += Number(damage.value)
           }
         }
       }
@@ -206,6 +214,7 @@ function handleNormalAttackJson(data: AttackResultJson) {
       if (!action.list)
         continue
 
+      battleInfo.value.normalAttackInfo.chain++
       const _action = action as unknown as SpecialScenario
       battleInfo.value.normalAttackInfo.hit += _action.total?.filter(item => item.split[0] !== '0').length ?? 0
       for (let i = 0; i < _action.list.length || 0; i++) {
@@ -359,7 +368,7 @@ export function handleWsPayloadJson(data: WsPayloadData) {
   }
 }
 
-function mergerCondition(condition: Condition) {
+function mergeCondition(condition: Condition) {
   const buffs = condition.buff || []
   const debuffs = condition.debuff || []
   const totalPlayerBuffs = buffs.concat(debuffs).filter((item, index, self) => index === self.findIndex(t => t.status === item.status))
@@ -424,7 +433,7 @@ function recordRaidInfo(data: BattleStartJson) {
         other: { comment: '其他', value: 0 },
       },
       condition: {
-        buff: mergerCondition(cur.condition),
+        buff: mergeCondition(cur.condition),
         coating_value: cur.condition.coating_value ?? 0,
       },
     })
@@ -433,7 +442,7 @@ function recordRaidInfo(data: BattleStartJson) {
 
   battleInfo.value.mvpInfo = []
   battleInfo.value.chatList = []
-  battleInfo.value.normalAttackInfo = { hit: 0, ability: 0, special: 0, total: 0 }
+  battleInfo.value.normalAttackInfo = { hit: 0, ability: 0, special: 0, total: 0, chain: 0 }
   const formation = Object.values(data.ability).map(a => a.pos)
   const guard_status = Object.values(data.ability).map(a => ({ num: a.pos, is_guard_status: 0 }))
 
@@ -441,9 +450,10 @@ function recordRaidInfo(data: BattleStartJson) {
     turn: data.turn,
     bossHpPercent: battleInfo.value.bossInfo!.hpPercent,
     special_skill_flag: Number(data.special_skill_flag),
-    acitonList: [],
+    actionList: [],
     guard_status,
     interrupt_display_text: battleInfo.value.bossInfo!.interrupt_display_text,
+    special_skill_interrupt: false,
   }]
 
   const abilityList = getAbilityList(data.ability)
@@ -489,8 +499,14 @@ function handleDamageStatistic(resultType: string, data: AttackResultJson | Batt
   const beforeAbilityDamageCmdList = ['special', 'special_npc', 'ability']
 
   for (const [idx, action] of data.scenario!.entries()) {
-    if (action.cmd === 'contribution')
+    if (action.cmd === 'contribution') {
       currentRaid.point! += action.amount || 0
+
+      const hitQuestSetting = questSetting.value.find(q => q.questId === currentRaid.quest_id)
+      if (resultType === 'normal' && notificationSetting.value.pointReach && hitQuestSetting?.point && currentRaid.point! >= hitQuestSetting.point) {
+        createNotification({ message: '到线啦!!!', sound: 'warning' })
+      }
+    }
 
     if (action.cmd === 'special' || action.cmd === 'special_npc') {
       const hitPlayer = currentRaid.player[action.num]
@@ -513,14 +529,14 @@ function handleDamageStatistic(resultType: string, data: AttackResultJson | Batt
         // 记录连击数据
         if (!action.effect) {
         // 致死普攻如果不是ta就不记录
-          if (!(action.damage.length < 3 && action.damage.some(attack => attack.some(hit => hit.hp === 0)))) {
+          if (action.damage[0] && Object.values(action.damage).every(attack => attack.every(hit => hit.hp !== 0))) {
             hitPlayer.attackInfo = hitPlayer.attackInfo || { total: 0, sa: 0, da: 0, ta: 0 }
             hitPlayer.attackInfo.total++
-            if (action.damage.length === 1)
+            if (action.total_attack_num === 1)
               hitPlayer.attackInfo.sa++
-            else if (action.damage.length === 2)
+            else if (action.total_attack_num === 2)
               hitPlayer.attackInfo.da++
-            else
+            else if (action.total_attack_num === 3)
               hitPlayer.attackInfo.ta++
           }
         }
@@ -734,9 +750,10 @@ function handleActionQueue(type: string, data: AttackResultJson, payload?: Resul
       turn: currentTurn,
       bossHpPercent: battleInfo.value.bossInfo!.hpPercent,
       special_skill_flag: currentRaid.special_skill_flag!,
-      acitonList: [],
+      actionList: [],
       guard_status,
       interrupt_display_text: battleInfo.value.bossInfo!.interrupt_display_text,
+      special_skill_interrupt: false,
     })
   }
 
@@ -769,7 +786,7 @@ function handleActionQueue(type: string, data: AttackResultJson, payload?: Resul
       }
     }
 
-    currentRaid.actionQueue.at(-1)?.acitonList.push({
+    currentRaid.actionQueue.at(-1)?.actionList.push({
       ...hit,
       icon: hit.subAbility ? hit.subAbility.find(a => a.index === String(payload.ability_sub_param[0]))?.icon : hit.icon,
       id: hit.subAbility ? hit.subAbility.find(a => a.index === String(payload.ability_sub_param[0]))?.id : hit.id,
@@ -778,7 +795,7 @@ function handleActionQueue(type: string, data: AttackResultJson, payload?: Resul
   }
 
   if (type === 'fc') {
-    currentRaid.actionQueue.at(-1)?.acitonList.push({
+    currentRaid.actionQueue.at(-1)?.actionList.push({
       type: 'fc',
       id: battleInfo.value.leaderAttr,
       icon: battleInfo.value.leaderAttr,
@@ -789,14 +806,14 @@ function handleActionQueue(type: string, data: AttackResultJson, payload?: Resul
     const summon_id = payload.summon_id
 
     if (summon_id === 'supporter') {
-      currentRaid.actionQueue.at(-1)?.acitonList.push({
+      currentRaid.actionQueue.at(-1)?.actionList.push({
         type: 'summon',
         id: battleInfo.value.summonInfo?.supporter.id,
         icon: battleInfo.value.summonInfo?.supporter.image_id,
       })
     }
     else {
-      currentRaid.actionQueue.at(-1)?.acitonList.push({
+      currentRaid.actionQueue.at(-1)?.actionList.push({
         type: 'summon',
         id: battleInfo.value.summonInfo?.summon[Number(summon_id) - 1].id,
         icon: battleInfo.value.summonInfo?.summon[Number(summon_id) - 1].image_id,
@@ -807,7 +824,7 @@ function handleActionQueue(type: string, data: AttackResultJson, payload?: Resul
   if (type === 'temporary') {
     const itemId = payload.item_id ? payload.item_id : payload.character_num ? '1' : '2'
     const hitPlayer = payload.character_num ? currentRaid.player[Number(payload.character_num)] : undefined
-    currentRaid.actionQueue.at(-1)?.acitonList.push({
+    currentRaid.actionQueue.at(-1)?.actionList.push({
       type: payload.item_id ? 'coopraid' : 'temporary',
       icon: itemId,
       id: itemId,
@@ -819,7 +836,7 @@ function handleActionQueue(type: string, data: AttackResultJson, payload?: Resul
 
   if (type === 'event/temporary') {
     const hitPlayer = payload.character_num ? currentRaid.player[Number(payload.character_num)] : undefined
-    currentRaid.actionQueue.at(-1)?.acitonList.push({
+    currentRaid.actionQueue.at(-1)?.actionList.push({
       type: 'event/temporary',
       icon: payload.item_id,
       id: payload.item_id,
@@ -830,13 +847,13 @@ function handleActionQueue(type: string, data: AttackResultJson, payload?: Resul
   }
 
   if (type === 'recovery')
-    currentRaid.actionQueue.at(-1)?.acitonList.push({ type: 'recovery', icon: 'recovery', id: 'recovery' })
+    currentRaid.actionQueue.at(-1)?.actionList.push({ type: 'recovery', icon: 'recovery', id: 'recovery' })
 
   if (type === 'normal') {
     handleNormalAttackJson(data)
     const index = dieIndex !== -1 ? -1 : -2
     if (currentRaid.actionQueue.at(index)) {
-      currentRaid.actionQueue.at(index)!.acitonList.push({ icon: 'attack', id: 'attack', type: 'attack' })
+      currentRaid.actionQueue.at(index)!.actionList.push({ icon: 'attack', id: 'attack', type: 'attack' })
       currentRaid.actionQueue.at(index)!.normalAttackInfo = { ...battleInfo.value.normalAttackInfo! }
     }
   }

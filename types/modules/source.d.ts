@@ -59,6 +59,7 @@ declare module 'source' {
       count: string
     }
     limit_number?: string
+    turn_waiting: number
     multi_raid_member_info?: MultiRaidMemberInfo[]
     twitter: { battle_id: string }
     summon: Summon[]
@@ -333,6 +334,7 @@ declare module 'source' {
     amount?: number
     is_last_raid?: boolean
     value?: number
+    total_attack_num?: number
   }
 
   interface SpecialScenario extends Scenario {
@@ -485,6 +487,13 @@ declare module 'source' {
       is_arousal_weapon: boolean
       form: number
     }
+    odiant: {
+      is_odiant_weapon: boolean
+      exorcision_level: number
+      max_exorcision_level: number
+      reduction_effect_value: number
+    }
+    augment_skill_icon_image: string[]
   }
 
   interface WeaponSkill {
@@ -502,6 +511,11 @@ declare module 'source' {
     assumed_normal_damage: number
     hp: number
     effect_value_info: EffectValueInfo[]
+    weapon_skill_enhance_param: {
+      weapon_skill_enhance: number
+      weapon_skill_enhance_magna: number
+      weapon_skill_enhance_evil: number
+    }
   }
 
   interface EffectValueInfo {
@@ -679,6 +693,7 @@ declare module 'source' {
 
   interface ArtifactSkillInfo {
     skill_id: number
+    skill_quality: number
     level: number
     name: string
     is_max_quality: boolean

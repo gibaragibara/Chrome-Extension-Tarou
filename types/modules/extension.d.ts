@@ -96,10 +96,10 @@ declare module 'extension' {
     date: string
   }
 
-  interface QuestMemo {
+  interface QuestSetting {
     questId: string
     questName: string
-    memo: string
+    point: number
   }
 
   interface GachaInfo {
@@ -216,8 +216,9 @@ declare module 'extension' {
     bossHpPercent: number
     special_skill_flag: number
     guard_status: { is_guard_status: number, num: number }[]
-    acitonList: Action[]
+    actionList: Action[]
     interrupt_display_text?: string
+    special_skill_interrupt?: boolean
     normalAttackInfo?: NormalAttackInfo
   }
 
@@ -318,6 +319,7 @@ declare module 'extension' {
     isPointOverLimit: boolean
     checkUpdate: boolean
     sampoFinish: boolean
+    pointReach: boolean
   }
 
   interface ArtifactRule {
@@ -341,6 +343,21 @@ declare module 'extension' {
     kind: string
     skillId: number
     value: number
+  }
+
+  interface ArtifactUsage {
+    image: string
+    filterList: {
+      iconType: string
+      filterId: number
+      skillId: number
+    }[]
+  }
+
+  interface ArtifactUsageFilterItem {
+    skill_type_name: string
+    rate: string
+    filter_id: string
   }
 
   interface DisplayItem {

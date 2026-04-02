@@ -6,6 +6,7 @@ declare module 'party' {
     leader: BuildLeader
     npcs: BuildNpc[]
     effects: BuildEffect[]
+    enhance: BuildEnhance
   }
 
   type SkillType = 'skill1' | 'skill2' | 'skill3'
@@ -69,6 +70,7 @@ declare module 'party' {
       image: string
     }[]
     isMain: boolean
+    augmentSkill?: string
   }
 
   interface BuildSummon {
@@ -84,5 +86,11 @@ declare module 'party' {
     iconImg: string
     isMax: boolean
     value: string
+  }
+
+  interface BuildEnhance {
+    enhance: number
+    enhanceMagna: number
+    enhanceEvil: number
   }
 }
