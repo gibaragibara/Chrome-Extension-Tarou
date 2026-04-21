@@ -95,8 +95,6 @@ export function setupWebRequestListener() {
 
         for (let i = 0; i < 7; i++) {
           for (let j = 0; j < 4; j++) {
-            if (i !== 0 && j > 1)
-              continue
             const target = $(`#js-fix-summon${i}${j}`)
             if (target.length) {
               const imgId = String(target.data().imageId)
@@ -208,8 +206,8 @@ function getTreasureList(domStr: string) {
     if (isItem) {
       const imgSrc = $(elem).find('.img-treasure-item').attr('src')
       const imgAlt = $(elem).find('.img-treasure-item').attr('alt')
-      const itemDataKey = $(elem).data().key as string
-      const itemDataId = $(elem).data().itemId as string
+      const itemDataKey = String($(elem).data().key)
+      const itemDataId = $(elem).data().itemId
       const itemKey = imgSrcToKey(imgSrc)
       if (notificationItem.value.includes(itemKey))
         showNotifications(itemKey)
@@ -257,7 +255,7 @@ function showNotifications(item: string) {
 
   createNotification({
     message: `G${str}t☆Daze!`,
-    iconUrl: `https://prd-game-a1-granbluefantasy.akamaized.net/assets/img/sp/assets${item}`,
+    iconUrl: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets${item}`,
     sound: 'drop',
   })
 }
